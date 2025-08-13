@@ -23,8 +23,8 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-config = TransferConfig(multipart_threshold=1024 * 25, max_concurrency=10,
-                        multipart_chunksize=1024 * 25, use_threads=True)
+config = TransferConfig(multipart_threshold=1024 * 1024 * 25, max_concurrency=10,
+                        multipart_chunksize=1024 * 1024 * 25, use_threads=True) # 25 Mb file
 
 def get_data_files():
     """List all data files in the local 'data' directory"""
