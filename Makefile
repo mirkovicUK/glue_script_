@@ -14,7 +14,8 @@ run_glue_image:
 	
 	docker run -it --rm \
 	-v ~/.aws:/home/hadoop/.aws \
-	-v $(WORKSPACE_LOCATION)/glu_script:/home/hadoop/workspace/ --user ${uid}:${gid} \
+	-v $(WORKSPACE_LOCATION)/glue_script:/home/hadoop/workspace/ --user ${uid}:${gid} \
 	-e AWS_PROFILE=$(PROFILE) \
 	--name glue5_pyspark \
 	public.ecr.aws/glue/aws-glue-libs:5 \
+	pyspark
