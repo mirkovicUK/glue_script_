@@ -1,4 +1,4 @@
-PROJECT_NAME = glue-script-01
+PROJECT_NAME = glue-script-02
 WD=$(shell pwd)
 WORKSPACE_LOCATION=${WD}
 PYTHON_INTERPRETER = python3
