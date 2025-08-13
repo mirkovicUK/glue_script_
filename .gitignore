@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# Ignore all Hadoop temp files
+*.run-*
+*run-*
+_temporary/
+*.crc
+*.parquet*
+*.parquet.crc
+.run-*.crc
