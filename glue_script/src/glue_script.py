@@ -141,8 +141,7 @@ def cast_flor_area(df_list:list[DataFrame]) -> list[DataFrame]:
             'total_floor_area': F.col('total_floor_area').cast(FloatType())
         })
         cast_df_list.append(df)
-    return cast_df_list
-    
+    return cast_df_list    
 
 
 if __name__ == "__main__":
