@@ -8,9 +8,8 @@ Functions include:
 - Generating unique bucket names
 - Uploading data files to S3 buckets
 
-
 Usage:
-    Import the module and call the desired functions.
+    python data_loader.py.
 """
 
 
@@ -28,7 +27,7 @@ config = TransferConfig(multipart_threshold=1024 * 1024 * 25, max_concurrency=10
 
 def get_data_files():
     """List all data files in the local 'data' directory"""
-    return glob.glob('./data1/*')
+    return glob.glob('./data/*')
 
 def create_bucket(bucket_name, region='eu-west-2'):
     """Create an S3 bucket in a specified region
@@ -104,6 +103,6 @@ if __name__=='__main__':
     s3 = create_bucket(bucket_name)
     data = get_data_files()
     print(data)
-    for file in upload_data(data, bucket_name, s3):
-        print(f'Uploaded {file}')
+    # for file in upload_data(data, bucket_name, s3):
+    #     print(f'Uploaded {file}')
     
