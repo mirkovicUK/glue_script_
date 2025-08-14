@@ -22,8 +22,10 @@ def df_data(glueContext):
         list: List of df.
     """
     # First two DataFrames with same schema
-    data1 = [{'id': 1, 'name': 'Alice'}, {'id': 2, 'name': 'Bob'}]
-    data2 = [{'id': 3, 'name': 'Charlie'}, {'id': 4, 'name': 'David'}]
+    data1 = [{'id': 1, 'name': 'Alice', 'total_floor_area': '100', 'total_floor_area_known': '1'},
+             {'id': 2, 'name': 'Bob', 'total_floor_area': '150', 'total_floor_area_known': '1'}]
+    data2 = [{'id': 3, 'name': 'Charlie', 'total_floor_area': '44', 'total_floor_area_known': '0'},
+             {'id': 4, 'name': 'David', 'total_floor_area': '17', 'total_floor_area_known': '0'}]
     
     # Third DataFrame with different schema
     data3 = [{'user_id': 1, 'email': 'alice@test.com'}]

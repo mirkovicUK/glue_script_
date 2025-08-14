@@ -4,7 +4,7 @@ import logging
 from unittest.mock import patch, MagicMock
 from awsglue.dynamicframe import DynamicFrame
 from src.glue_script import get_files_from_s3,\
-    partition_files_by_extension, load_to_dyf, consistent_schema
+    partition_files_by_extension, load_to_dyf, consistent_schema, cast_flor_area
 from moto import mock_aws
 import boto3
 
@@ -122,4 +122,17 @@ def test_check_schema_consistency_true_and_false_path(df_data, glueContext):
     
     assert consistent_schema([dyf1, dyf2]) is True
     assert consistent_schema([dyf1, dyf2, dyf3]) is False
+
+def test_cast_flor_area(df_data, glueContext):
+    """Test the cast_flor_area function."""
+    dyf1 = DynamicFrame.fromDF(df_data[0], glueContext, "dyf1")
+    dyf2 = DynamicFrame.fromDF(df_data[1], glueContext, "dyf2")
+    
+    # Cast total_floor_area_known and total_floor_area to appropriate types
+    df_list = [dyf1.toDF(), dyf2.toDF()]
+    casted_df_list = cast_flor_area(df_list)
+    
+    for df in casted_df_list:
+        assert df.schema['total_floor_area_known'].dataType.typeName() == 'integer'
+        assert df.schema['total_floor_area'].dataType.typeName() == 'float'
     

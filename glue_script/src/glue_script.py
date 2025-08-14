@@ -6,6 +6,10 @@ from awsglue.context import GlueContext
 from awsglue.job import Job
 from awsglue.dynamicframe import DynamicFrame
 import boto3
+from pyspark.sql import functions as F
+from pyspark.sql.types import FloatType, IntegerType
+from pyspark.sql import DataFrame
+
 
 
 
@@ -101,7 +105,7 @@ def consistent_schema(dyf_list):
             return False
     return True
 
-def transform_data(dyf_list, spark, logger=None):
+def transform_data(dyf_list, logger=None):
     """Transform the data in the DynamicFrames.
     Args:
         dyf_list (list): List of DynamicFrames to transform.
@@ -110,22 +114,35 @@ def transform_data(dyf_list, spark, logger=None):
     Returns:
         tuple: Two DataFrames, one for houses and one for flats.
     """
-    # Assuming the first DynamicFrame is houses and the second is flats
-    dyf_houses = dyf_list[0].toDF()
-    dyf_flats = dyf_list[1].toDF()
+    # Convert to DataFrames
     df_list = []
     for dyf in dyf_list:
         df_list.append(dyf.toDF())
-
-    # Perform transformations as needed
-    # For example, let's just select some columns
-    dyf_houses = dyf_houses.select("id", "address", "price")
-    dyf_flats = dyf_flats.select("id", "address", "price")
-
-    if logger:
-        logger.info("Transformed data into houses and flats DataFrames.")
+    # Cast total_floor_area_known and total_floor_area to appropriate types
+    df_list = cast_flor_area(df_list)
     
-    return dyf_houses, dyf_flats
+    
+
+def cast_flor_area(df_list:list[DataFrame]) -> list[DataFrame]:
+    """Cast total_floor_area_known and total_floor_area to appropriate types.
+    Args:
+        df_list (list): List of DataFrames to transform.
+    Returns:
+        list: List of transformed DataFrames.
+    """
+   #cast total_floor_area_known, total_floor_area to float
+    cast_df_list = []
+    for df in df_list:
+        # Filter out rows with null total_floor_area_known
+        df = df.filter(F.col('total_floor_area_known').isNotNull())\
+        .filter(F.col('total_floor_area').isNotNull())
+        df = df.withColumns({
+            'total_floor_area_known': F.col('total_floor_area_known').cast(IntegerType()),
+            'total_floor_area': F.col('total_floor_area').cast(FloatType())
+        })
+        cast_df_list.append(df)
+    return cast_df_list
+    
 
 
 if __name__ == "__main__":
@@ -154,7 +171,7 @@ if __name__ == "__main__":
     s3_client = boto3.client('s3')
 
     
-    # Retrieve files from the S3 bucket
+    # Retrieve csv data files from the S3 bucket
     logger.info(f"Retrieving files from S3 bucket: s3://{s3_bucket}")
     files = get_files_from_s3(s3_bucket, s3_client, logger)
     csv_files, xlsx_files = partition_files_by_extension(files)
@@ -163,10 +180,11 @@ if __name__ == "__main__":
     dyf_list = load_to_dyf(csv_files, glueContext, s3_bucket, logger)
     logger.info(f"Loaded {len(dyf_list)} DynamicFrames from CSV files.")
 
+    # Check if all DynamicFrames have consistent schema and apply transformation
     if consistent_schema(dyf_list):
         logger.info("All DynamicFrames have the same schema.")
-        dyf_houses, dyf_flats = transform_data(dyf_list, spark, logger)
+        dyf_houses, dyf_flats = transform_data(dyf_list, logger)
     else:
         logger.error("DynamicFrames do not have consistent schemas.")
-        raise ValueError("DynamicFrames do not have consistent schemas.")
+        raise ValueError("Unable to transform data, inconsistent schemas.")
     
