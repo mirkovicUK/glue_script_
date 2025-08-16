@@ -14,7 +14,7 @@ def spark_context():
 def glueContext(spark_context):
     yield GlueContext(spark_context)
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def df_data(glueContext):
     """Fixture to provide 3 spark df for testing.
     first 2 have same schema and third has different schema.
@@ -22,10 +22,15 @@ def df_data(glueContext):
         list: List of df.
     """
     # First two DataFrames with same schema
-    data1 = [{'id': 1, 'name': 'Alice', 'total_floor_area': '100', 'total_floor_area_known': '1'},
-             {'id': 2, 'name': 'Bob', 'total_floor_area': '150', 'total_floor_area_known': '1'}]
-    data2 = [{'id': 3, 'name': 'Charlie', 'total_floor_area': '44', 'total_floor_area_known': '0'},
-             {'id': 4, 'name': 'David', 'total_floor_area': '17', 'total_floor_area_known': '0'}]
+    data1 = [{'id': 1, 'name': 'Alice', 'total_floor_area': '100',
+              'total_floor_area_known': '1','uprn': '12345', 'property_type': 'flat'},
+             {'id': 2, 'name': 'Bob', 'total_floor_area': '150',
+              'total_floor_area_known': '1', 'uprn': '12345', 'property_type': 'house'}]
+    
+    data2 = [{'id': 3, 'name': 'Charlie', 'total_floor_area': '44',
+              'total_floor_area_known': '0', 'uprn': '1234567', 'property_type': 'flat'},
+             {'id': 4, 'name': 'David', 'total_floor_area': '17',
+              'total_floor_area_known': '0', 'uprn': '123456', 'property_type': 'house'}]
     
     # Third DataFrame with different schema
     data3 = [{'user_id': 1, 'email': 'alice@test.com'}]

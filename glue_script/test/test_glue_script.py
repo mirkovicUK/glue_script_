@@ -3,8 +3,11 @@ import pytest
 import logging
 from unittest.mock import patch, MagicMock
 from awsglue.dynamicframe import DynamicFrame
+from pyspark.sql.functions import col
 from src.glue_script import get_files_from_s3,\
-    partition_files_by_extension, load_to_dyf, consistent_schema, cast_flor_area
+    partition_files_by_extension, load_to_dyf, consistent_schema, cast_flor_area,\
+    over_80_sqr_meters, transform_data, remove_duplicates,\
+    concatinate_dataframes, get_flats_houses
 from moto import mock_aws
 import boto3
 
@@ -113,7 +116,7 @@ def test_load_to_dyf_partial_failure():
     mock_logger.error.assert_called_once_with("Error loading file bad_file.to_the_bone: First file error")
     mock_logger.info.assert_called_once_with("Loaded file good_file.csv into DynamicFrame")
 
-def test_check_schema_consistency_true_and_false_path(df_data, glueContext):
+def test_check_schema_consistency_true_and_false(df_data, glueContext):
     """Test the check_schema_consistency function."""
 
     dyf1 = DynamicFrame.fromDF(df_data[0], glueContext, "dyf1")
@@ -123,16 +126,58 @@ def test_check_schema_consistency_true_and_false_path(df_data, glueContext):
     assert consistent_schema([dyf1, dyf2]) is True
     assert consistent_schema([dyf1, dyf2, dyf3]) is False
 
-def test_cast_flor_area(df_data, glueContext):
-    """Test the cast_flor_area function."""
-    dyf1 = DynamicFrame.fromDF(df_data[0], glueContext, "dyf1")
-    dyf2 = DynamicFrame.fromDF(df_data[1], glueContext, "dyf2")
-    
+def test_cast_flor_area(df_data):
+    """Test the cast_flor_area function."""    
     # Cast total_floor_area_known and total_floor_area to appropriate types
-    df_list = [dyf1.toDF(), dyf2.toDF()]
+    df_list = [df_data[0], df_data[1]]
     casted_df_list = cast_flor_area(df_list)
     
     for df in casted_df_list:
         assert df.schema['total_floor_area_known'].dataType.typeName() == 'integer'
         assert df.schema['total_floor_area'].dataType.typeName() == 'float'
+
+def test_over_80_sqr_meters(df_data):
+    """Test the over_80_sqr_meters function."""
+    # Cast total_floor_area_known and total_floor_area to appropriate types
+    df_list = [df_data[0], df_data[1]]
+    filtered_df_list = over_80_sqr_meters(df_list)
     
+    assert len(filtered_df_list) == 1 # Only df1 should remain after filtering 
+    for df in filtered_df_list:
+        assert df.filter(col('total_floor_area') <= 80).count() == 0
+        assert df.count() == 2
+
+def test_remove_duplicates(df_data):
+    """Test the remove_duplicates function."""
+    # Create DynamicFrames from DataFrames
+    
+    # Remove duplicates based on 'uprn'
+    df_list = [df_data[0], df_data[1]]
+    filtered_df_list = remove_duplicates(df_list)
+    
+    assert len(filtered_df_list) == 2
+    assert filtered_df_list[0].count() == 1
+    assert filtered_df_list[1].count() == 2
+
+def test_concatenate_dataframes(df_data):
+    """Test the concatinate_dataframes function."""
+    # Create DynamicFrames from DataFrames
+    df_list = [df_data[0], df_data[1]]
+    
+    concatenated_df = concatinate_dataframes(df_list)
+    
+    assert concatenated_df.count() == 4  # 2 rows from each DataFrame
+    assert set(concatenated_df.columns) == {'id', 'name', 'total_floor_area', \
+                                            'total_floor_area_known', 'uprn', 'property_type'}
+
+def test_get_flats_houses(df_data):
+    """Test the get_flats_houses function."""
+    # Create a DataFrame with mixed data
+    df = df_data[0].union(df_data[1])
+    
+    flats, houses = get_flats_houses(df)
+    
+    assert flats.count() == 2  # All rows should be considered flats
+    assert houses.count() == 2  # No houses in this test data
+    assert set(flats.columns) == {'id', 'name', 'total_floor_area', \
+                                  'total_floor_area_known', 'uprn', 'property_type'}
