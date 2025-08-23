@@ -208,6 +208,8 @@ __marimo__/
 
 #Ignore Data files
 *data
+*.csv
+*.xlsx
 
 # Ignore all Hadoop temp files
 *.run-*
@@ -217,3 +219,12 @@ _temporary/
 *.parquet*
 *.parquet.crc
 .run-*.crc
+
+#aws-sam
+samconfig.toml
+.aws-sam/
+
+# Jupyter notebooks with sensitive data
+helper.ipynb
+glue_script/src/helper.ipynb
+

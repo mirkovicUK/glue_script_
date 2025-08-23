@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description:
+  Deploying Glue Job using SAM
+
+Parameters:
+  GlueJobName:
+    Type: String
+    Default: my-glue-job
+  ScriptLocation:
+    Type: String
+    Default: S3 path to Glue script
+  ScriptBucket:
+    Type: String
+    Default: S3 path to Glue script
+  DataBucket:
+    Type: String
+    Default: s3 path to input data
+
+Resources:
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+      - PolicyName: S3ScriptAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource:
+                - !Sub 'arn:aws:s3:::${ScriptBucket}'
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource:
+                - !Sub 'arn:aws:s3:::${ScriptBucket}/*'
+      - PolicyName: S3DataAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource:
+                - !Sub 'arn:aws:s3:::${DataBucket}'
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource:
+                - !Sub 'arn:aws:s3:::${DataBucket}/*'
+
+
+  GlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: !Ref GlueJobName
+      Role: !GetAtt GlueJobRole.Arn
+      Command:
+        Name: glueetl
+        ScriptLocation: !Ref ScriptLocation
+        PythonVersion: '3'
+      DefaultArguments:
+        '--TempDir': !Sub 's3://${ScriptBucket}/temp/'
+        '--job-bookmark-option': 'job-bookmark-disable'
+        '--BUCKET_NAME': !Ref DataBucket
+        '--ENABLE_GLUE_PARQUET_WRITER': 'true'
+        '--enable-spark-ui': 'true'
+        '--spark-event-logs-path': !Sub 's3://${ScriptBucket}/sparkHistoryLogs/'
+      MaxRetries: 1
+      Timeout: 30
+      GlueVersion: '5.0'
+      NumberOfWorkers: 2
+      WorkerType: G.1X
+
+Outputs:
+  GlueJobName:
+    Description: Name of the Glue job
+    Value: !Ref GlueJob
+

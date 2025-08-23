@@ -213,7 +213,7 @@ def write_data(dyf:DynamicFrame, glueContext, s3_bucket, logger=None):
         glueContext.write_dynamic_frame.from_options(
             frame=dyf,
             connection_type="s3",
-            connection_options={"path": f"s3://{s3_bucket}/output/",
+            connection_options={"path": f"s3://{s3_bucket}/output/{dyf.name}/",
                                 "enableUpdateCatalog": True,
                                 "updateBehavior": "UPDATE_IN_DATABASE",
                                 "partitionKeys": ['administrative_area']},
