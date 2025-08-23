@@ -7,10 +7,7 @@ Parameters:
   GlueJobName:
     Type: String
     Default: my-glue-job
-  ScriptLocation:
-    Type: String
-    Default: S3 path to Glue script
-  ScriptBucket:
+  SparkLogs:
     Type: String
     Default: S3 path to Glue script
   DataBucket:
@@ -39,14 +36,14 @@ Resources:
               Action:
                 - s3:ListBucket
               Resource:
-                - !Sub 'arn:aws:s3:::${ScriptBucket}'
+                - !Sub 'arn:aws:s3:::${SparkLogs}'
             - Effect: Allow
               Action:
                 - s3:GetObject
                 - s3:PutObject
                 - s3:DeleteObject
               Resource:
-                - !Sub 'arn:aws:s3:::${ScriptBucket}/*'
+                - !Sub 'arn:aws:s3:::${SparkLogs}/*'
       - PolicyName: S3DataAccess
         PolicyDocument:
           Version: '2012-10-17'
@@ -63,7 +60,6 @@ Resources:
               Resource:
                 - !Sub 'arn:aws:s3:::${DataBucket}/*'
 
-
   GlueJob:
     Type: AWS::Glue::Job
     Properties:
@@ -71,15 +67,15 @@ Resources:
       Role: !GetAtt GlueJobRole.Arn
       Command:
         Name: glueetl
-        ScriptLocation: !Ref ScriptLocation
+        ScriptLocation: glue_script/src/glue_script.py
         PythonVersion: '3'
       DefaultArguments:
-        '--TempDir': !Sub 's3://${ScriptBucket}/temp/'
+        '--TempDir': !Sub 's3://${SparkLogs}/temp/'
         '--job-bookmark-option': 'job-bookmark-disable'
         '--BUCKET_NAME': !Ref DataBucket
         '--ENABLE_GLUE_PARQUET_WRITER': 'true'
         '--enable-spark-ui': 'true'
-        '--spark-event-logs-path': !Sub 's3://${ScriptBucket}/sparkHistoryLogs/'
+        '--spark-event-logs-path': !Sub 's3://${SparkLogs}/sparkHistoryLogs/'
       MaxRetries: 1
       Timeout: 30
       GlueVersion: '5.0'
