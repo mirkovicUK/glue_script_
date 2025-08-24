@@ -105,7 +105,7 @@ def consistent_schema(dyf_list):
             return False
     return True
 
-def transform_data(dyf_list:list[DynamicFrame], glueContext, logger=None)->tuple[DynamicFrame, DynamicFrame]:
+def transform_data(dyf_list, glueContext, logger=None):
     """Transform the data in the DataFrame.
     *cast flor area to float and total_floor_area_known to int
     *filter out rows with total_floor_area_known less than 80 square meters
@@ -133,7 +133,7 @@ def transform_data(dyf_list:list[DynamicFrame], glueContext, logger=None)->tuple
     return DynamicFrame.fromDF(flats, glueContext, "flats"), \
            DynamicFrame.fromDF(houses, glueContext, "houses")
 
-def get_flats_houses(df:DataFrame) -> tuple[DataFrame, DataFrame]:
+def get_flats_houses(df):
     """Get flats from the DataFrame.
     Args:
         df (DataFrame): The DataFrame to filter.
@@ -143,7 +143,7 @@ def get_flats_houses(df:DataFrame) -> tuple[DataFrame, DataFrame]:
     return df.filter(F.col('property_type') == 'flat'),\
         df.filter(F.col('property_type') == 'house')
 
-def concatinate_dataframes(df_list:list[DataFrame]) -> DataFrame:
+def concatinate_dataframes(df_list):
     """Concatenate a list of DataFrames into a single DataFrame.
     Args:
         df_list (list): List of DataFrames to concatenate.
@@ -156,7 +156,7 @@ def concatinate_dataframes(df_list:list[DataFrame]) -> DataFrame:
         base_df = base_df.union(df)
     return base_df
 
-def remove_duplicates(df_list:list[DataFrame]) -> list[DataFrame]:
+def remove_duplicates(df_list):
     """Remove duplicates from the DataFrame.
     Args:
         df_list (list): List of DataFrames to remove duplicates from.
@@ -167,7 +167,7 @@ def remove_duplicates(df_list:list[DataFrame]) -> list[DataFrame]:
     df_list = [df.dropDuplicates(['uprn']) for df in df_list]
     return df_list
 
-def over_80_sqr_meters(df_list:list[DataFrame]) -> list[DataFrame]:
+def over_80_sqr_meters(df_list):
     """Filter out rows with total_floor_area_known less than 80 square meters.
     Args:
         df_list (list): List of DataFrames to filter.
@@ -180,7 +180,7 @@ def over_80_sqr_meters(df_list:list[DataFrame]) -> list[DataFrame]:
         filtered_df_list.append(df)
     return [df for df in filtered_df_list if not df.rdd.isEmpty()]
 
-def cast_flor_area(df_list:list[DataFrame]) -> list[DataFrame]:
+def cast_flor_area(df_list):
     """Cast total_floor_area_known and total_floor_area to int and float respectively.
     drops rows with null values in these columns.
     Args:
@@ -201,7 +201,7 @@ def cast_flor_area(df_list:list[DataFrame]) -> list[DataFrame]:
         cast_df_list.append(df)
     return cast_df_list    
 
-def write_data(dyf:DynamicFrame, glueContext, s3_bucket, logger=None):
+def write_data(dyf, glueContext, s3_bucket, logger=None):
     """Write the DynamicFrame to S3.
     Args:
         dyf (DynamicFrame): The DynamicFrame to write.
@@ -210,18 +210,33 @@ def write_data(dyf:DynamicFrame, glueContext, s3_bucket, logger=None):
         logger (Logger, optional): Logger for logging messages. Defaults to None.
     """
     try:
+        # Calculate optimal number of partitions
+        row_count = dyf.count()
+        
+        # Estimate: ~1KB per row (adjust based on your data)
+        estimated_size_mb = row_count / 1024
+        
+        # Target 128MB per file
+        target_size_mb = 128
+        optimal_partitions = max(1, int(estimated_size_mb / target_size_mb))
+        
+        if logger:
+            logger.info(f"Estimated size: {estimated_size_mb:.1f}MB, using {optimal_partitions} partitions")
+        
+        df = dyf.toDF()
+        df_coalesced = df.coalesce(optimal_partitions)
+        dyf = DynamicFrame.fromDF(df_coalesced, glueContext, dyf.name)
+        
         glueContext.write_dynamic_frame.from_options(
             frame=dyf,
             connection_type="s3",
-            connection_options={"path": f"s3://{s3_bucket}/output/{dyf.name}/",
-                                "enableUpdateCatalog": True,
-                                "updateBehavior": "UPDATE_IN_DATABASE",
-                                "partitionKeys": ['administrative_area']},
+            connection_options={"path": f"s3://{s3_bucket}/output/{dyf.name}/"
+                                # "partitionKeys": ['administrative_area']
+                            },
             format="parquet",
-            format_options={"compression": "SNAPPY",
-                            'database': 'var_data',
-                            'tableName': 'property_data'}
+            format_options={"compression": "SNAPPY"}
         )
+
         if logger:
             logger.info(f"Data written to s3://{s3_bucket}/output/")
     except Exception as e:
@@ -268,7 +283,7 @@ if __name__ == "__main__":
     # Check if all DynamicFrames have consistent schema and apply transformation
     if consistent_schema(dyf_list):
         logger.info("All DynamicFrames have the same schema.")
-        transformed_data = transform_data(dyf_list, glueContext)
+        transformed_data = transform_data(dyf_list, glueContext, logger)
     else:
         logger.error("DynamicFrames do not have consistent schemas.")
         raise ValueError("Unable to transform data, inconsistent schemas.")
@@ -278,4 +293,4 @@ if __name__ == "__main__":
     for dyf in transformed_data:
         write_data(dyf, glueContext, s3_bucket, logger)
     
-    
+    job.commit()

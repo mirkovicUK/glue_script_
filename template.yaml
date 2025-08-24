@@ -1,7 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description:
-  Deploying Glue Job using SAM
+Description: >
+  Complete AWS Glue ETL pipeline with orchestrated workflow.
+  Deploys Glue job for data processing, crawler for schema discovery,
+  and workflow automation that runs job first, then crawler on success.
+  Includes IAM roles, S3 permissions, and Glue Data Catalog integration.
 
 Parameters:
   GlueJobName:
@@ -13,6 +16,9 @@ Parameters:
   DataBucket:
     Type: String
     Default: s3 path to input data
+  GlueWorkflowName:
+    Type: String
+    Default: properties_workflow
 
 Resources:
   GlueJobRole:
@@ -59,6 +65,33 @@ Resources:
                 - s3:PutObject
               Resource:
                 - !Sub 'arn:aws:s3:::${DataBucket}/*'
+      - PolicyName: GlueCatalogAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - glue:CreateDatabase
+                - glue:UpdateDatabase
+                - glue:CreateTable
+                - glue:UpdateTable
+                - glue:GetDatabase
+                - glue:GetTable
+                - glue:GetPartitions
+                - glue:CreatePartition
+                - glue:UpdatePartition
+                - glue:BatchCreatePartition
+                - glue:StartCrawler
+                - glue:GetCrawler
+                - glue:GetCrawlerMetrics
+                - glue:StartWorkflowRun
+                - glue:GetWorkflowRun
+                - glue:GetWorkflowRunProperties
+                - glue:GetWorkflow
+                - glue:StartTrigger
+                - glue:GetTrigger
+                - glue:GetTriggers
+              Resource: '*'
 
   GlueJob:
     Type: AWS::Glue::Job
@@ -82,8 +115,64 @@ Resources:
       NumberOfWorkers: 2
       WorkerType: G.1X
 
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: !Sub '${AWS::StackName}-database'
+
+  GlueCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub '${GlueJobName}-crawler'
+      Role: !GetAtt GlueJobRole.Arn
+      DatabaseName: !Ref GlueDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub 's3://${DataBucket}/output/'
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: LOG
+    DependsOn: GlueJob
+
+  GlueWorkflow:
+    Type: AWS::Glue::Workflow
+    Properties:
+      Name: !Ref GlueWorkflowName
+      Description: 'On-demand workflow: runs job then crawler'
+
+  WorkflowStartTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub '${GlueJobName}-start-trigger'
+      Type: ON_DEMAND
+      WorkflowName: !Ref GlueWorkflowName
+      Actions:
+        - JobName: !Ref GlueJob
+
+  CrawlerTrigger:
+    Type: AWS::Glue::Trigger
+    Properties:
+      Name: !Sub '${GlueJobName}-crawler-trigger'
+      Type: CONDITIONAL
+      WorkflowName: !Ref GlueWorkflowName
+      Predicate:
+        Conditions:
+          - LogicalOperator: EQUALS
+            JobName: !Ref GlueJob
+            State: SUCCEEDED
+      Actions:
+        - CrawlerName: !Ref GlueCrawler
+
 Outputs:
   GlueJobName:
     Description: Name of the Glue job
     Value: !Ref GlueJob
+  GlueCrawlerName:
+    Description: Name of the Glue crawler
+    Value: !Ref GlueCrawler
+  GlueWorkflowName:
+    Description: Name of the Glue workflow
+    Value: !Ref GlueWorkflow
 
